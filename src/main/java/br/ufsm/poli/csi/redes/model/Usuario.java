@@ -4,8 +4,10 @@ import br.ufsm.poli.csi.redes.swing.ChatClientSwing;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
+import lombok.RequiredArgsConstructor;
 
 import java.net.InetAddress;
+import java.sql.Timestamp;
 
 @Data
 @AllArgsConstructor
@@ -15,6 +17,7 @@ public class Usuario {
     private String nome;
     private StatusUsuario status;
     private InetAddress endereco;
+    private Timestamp lastSonda;
 
 
     @Override
@@ -23,6 +26,12 @@ public class Usuario {
         if (o == null || getClass() != o.getClass()) return false;
         Usuario usuario = (Usuario) o;
         return nome.equals(usuario.nome);
+    }
+
+    public Usuario(String nome, StatusUsuario status, InetAddress endereco) {
+        this.nome = nome;
+        this.status = status;
+        this.endereco = endereco;
     }
 
     @Override

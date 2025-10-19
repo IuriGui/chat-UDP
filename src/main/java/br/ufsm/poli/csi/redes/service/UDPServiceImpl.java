@@ -9,7 +9,9 @@ import lombok.SneakyThrows;
 
 import java.io.IOException;
 import java.net.*;
+import java.sql.Timestamp;
 import java.util.HashMap;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -19,6 +21,7 @@ public class UDPServiceImpl implements UDPService {
     private DatagramSocket socket;
     private Thread threadEnviaSonda;
     private Thread threadListener;
+    private Thread threadUsuario;
 
     private final Set<UDPServiceUsuarioListener> usuarioListeners = ConcurrentHashMap.newKeySet();
     private final Set<UDPServiceMensagemListener> mensagemListeners = ConcurrentHashMap.newKeySet();
@@ -30,7 +33,9 @@ public class UDPServiceImpl implements UDPService {
 
         private final DatagramSocket socket;
 
-        public Listener(DatagramSocket socket) { this.socket = socket; }
+        public Listener(DatagramSocket socket) {
+            this.socket = socket;
+        }
 
         @Override
         @SneakyThrows
@@ -44,7 +49,7 @@ public class UDPServiceImpl implements UDPService {
                 InetAddress remetente = packet.getAddress();
                 int porta = packet.getPort();
 
-                System.out.println("[UDPListener] Recebido de " + remetente.getHostAddress() + ":" + porta + " -> " + mensagem);
+                //System.out.println("[UDPListener] Recebido de " + remetente.getHostAddress() + ":" + porta + " -> " + mensagem);
 
                 processaPacotes(packet);
 
@@ -58,7 +63,9 @@ public class UDPServiceImpl implements UDPService {
         private final DatagramSocket socket;
         private final ObjectMapper mapper = new ObjectMapper();
 
-        public Sonda(DatagramSocket socket) { this.socket = socket; }
+        public Sonda(DatagramSocket socket) {
+            this.socket = socket;
+        }
 
 
         @Override
@@ -86,7 +93,13 @@ public class UDPServiceImpl implements UDPService {
     @SneakyThrows
     private void sendToEveryone(byte[] bMensagem) {
         for (NetworkInterface ni : java.util.Collections.list(NetworkInterface.getNetworkInterfaces())) {
-            if (ni.isLoopback() || !ni.isUp()) continue;
+            if (ni.isLoopback() || !ni.isUp() || ni.isVirtual()) continue;
+
+            String nome = ni.getDisplayName().toLowerCase();
+            if (nome.contains("virtual") || nome.contains("vmware") || nome.contains("hyper-v") ||
+                    nome.contains("loopback") || nome.contains("miniport") || nome.contains("zerotier")) {
+                continue;
+            }
 
             for (InterfaceAddress ia : ni.getInterfaceAddresses()) {
                 InetAddress broadcast = ia.getBroadcast();
@@ -122,6 +135,10 @@ public class UDPServiceImpl implements UDPService {
         threadListener.setDaemon(true);
         threadListener.start();
 
+        threadUsuario = new Thread(new RemoveInativo());
+        threadUsuario.setDaemon(true);
+        threadUsuario.start();
+
     }
 
 
@@ -132,43 +149,71 @@ public class UDPServiceImpl implements UDPService {
 
         InetAddress remetente = packet.getAddress();
 
-       switch (msg.getTipoMensagem()){
-           case sonda -> {
-               System.out.println("📡 Recebida sonda de " + msg.getUsuario());
+        switch (msg.getTipoMensagem()) {
+            case sonda -> {
+                System.out.println("📡 Recebida sonda de " + msg.getUsuario());
 
-               Usuario u = new Usuario();
-               u.setNome(msg.getUsuario());
-               u.setStatus(Usuario.StatusUsuario.valueOf(msg.getStatus()));
-               listaUsuarios.put(remetente, u);
+                //Usuario do pacote
+                Usuario u = new Usuario(msg.getUsuario(), Usuario.StatusUsuario.valueOf(msg.getStatus()), remetente, new Timestamp(System.currentTimeMillis()));
 
-               for (UDPServiceUsuarioListener listener : usuarioListeners) {
-                   listener.usuarioAdicionado(u);
-               }
+                listaUsuarios.put(remetente, u);
 
-               //System.out.println("Usuário registrado/atualizado: " + msg.getUsuario());
-               //imprimirUsuarios();
-           }
-           case msg_grupo -> {
-               Usuario u = new Usuario();
-               u.setNome(msg.getUsuario());
-               u.setStatus(Usuario.StatusUsuario.valueOf(msg.getStatus()));
-               for(UDPServiceMensagemListener listener : mensagemListeners){
-                   listener.mensagemRecebida(msg.getMsg(), u, true);
-               }
-           }
-           case msg_individual -> {
-               System.out.println("msg individual");
-           }
-           case fim_chat -> {
-               System.out.println("fim chat");
-           }
+                for (UDPServiceUsuarioListener listener : usuarioListeners) {
+                    listener.usuarioAdicionado(u);
+                }
 
-       }
+            }
+            case msg_grupo -> {
+                Usuario u = new Usuario();
+                u.setNome(msg.getUsuario());
+                u.setStatus(Usuario.StatusUsuario.valueOf(msg.getStatus()));
+                for (UDPServiceMensagemListener listener : mensagemListeners) {
+                    listener.mensagemRecebida(msg.getMsg(), u, true);
+                }
+            }
+            case msg_individual -> {
+                System.out.println("msg individual");
+            }
+            case fim_chat -> {
+                System.out.println("fim chat");
+            }
 
+        }
 
+    }
 
 
+    private class RemoveInativo implements Runnable {
 
+        private boolean inativo(Usuario usuario) {
+            long agora = System.currentTimeMillis();
+            long lastSonda = usuario.getLastSonda().getTime();
+            //System.out.println("Tempo que " + usuario.getNome() + " está inativo: " + ((agora - lastSonda) / 1000));
+            return agora - lastSonda > 30_000;
+
+        }
+
+        @Override
+        public void run() {
+            while (true) {
+                for (Map.Entry<InetAddress, Usuario> entry : listaUsuarios.entrySet()) {
+                    Usuario u = entry.getValue();
+                    if (inativo(u)) {
+                        for (UDPServiceUsuarioListener listener : usuarioListeners) {
+                            listener.usuarioRemovido(u);
+                        }
+                        // Remove do mapa
+                        listaUsuarios.remove(entry.getKey());
+                    }
+                }
+
+                try {
+                    Thread.sleep(5000); // verifica a cada 5 segundos
+                } catch (InterruptedException e) {
+                    e.printStackTrace();
+                }
+            }
+        }
     }
 
     private void imprimirUsuarios() {
@@ -181,25 +226,22 @@ public class UDPServiceImpl implements UDPService {
 
     @Override
     public void enviarMensagem(String mensagem, Usuario destinatario, boolean chatGeral) throws JsonProcessingException {
-            DatagramPacket packet;
-            ObjectMapper mapper = new ObjectMapper();
+        DatagramPacket packet;
+        ObjectMapper mapper = new ObjectMapper();
 
-            Mensagem mensagemGrupo = new Mensagem();
-            mensagemGrupo.setUsuario(usuario.getNome());
-            mensagemGrupo.setStatus(usuario.getStatus().toString());
-            mensagemGrupo.setTipoMensagem(TipoMensagem.msg_grupo);
-            mensagemGrupo.setMsg(mensagem);
+        Mensagem mensagemGrupo = new Mensagem();
+        mensagemGrupo.setUsuario(usuario.getNome());
+        mensagemGrupo.setStatus(usuario.getStatus().toString());
+        mensagemGrupo.setTipoMensagem(TipoMensagem.msg_grupo);
+        mensagemGrupo.setMsg(mensagem);
 
-            try {
-                String strMensagem = mapper.writeValueAsString(mensagemGrupo);
-                byte[] bMensagem = strMensagem.getBytes();
-                sendToEveryone(bMensagem);
-            } catch (Exception e){
-                e.printStackTrace();
-            }
-
-
-
+        try {
+            String strMensagem = mapper.writeValueAsString(mensagemGrupo);
+            byte[] bMensagem = strMensagem.getBytes();
+            sendToEveryone(bMensagem);
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
     }
 
     @Override
