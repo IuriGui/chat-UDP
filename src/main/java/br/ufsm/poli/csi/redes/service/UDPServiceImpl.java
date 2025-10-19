@@ -172,7 +172,12 @@ public class UDPServiceImpl implements UDPService {
                 }
             }
             case msg_individual -> {
-                System.out.println("msg individual");
+                Usuario u = new Usuario();
+                u.setNome(msg.getUsuario());
+                u.setStatus(Usuario.StatusUsuario.valueOf(msg.getStatus()));
+                for (UDPServiceMensagemListener listener : mensagemListeners){
+                    listener.mensagemRecebida(msg.getMsg(), u, false);
+                }
             }
             case fim_chat -> {
                 System.out.println("fim chat");
