@@ -145,11 +145,20 @@ public class UDPServiceImpl implements UDPService {
                    listener.usuarioAdicionado(u);
                }
 
-               System.out.println("Usuário registrado/atualizado: " + msg.getUsuario());
-               imprimirUsuarios();
+               //System.out.println("Usuário registrado/atualizado: " + msg.getUsuario());
+               //imprimirUsuarios();
            }
            case msg_grupo -> {
+<<<<<<< HEAD
 
+=======
+               Usuario u = new Usuario();
+               u.setNome(msg.getUsuario());
+               u.setStatus(Usuario.StatusUsuario.valueOf(msg.getStatus()));
+               for(UDPServiceMensagemListener listener : mensagemListeners){
+                   listener.mensagemRecebida(msg.getMsg(), u, true);
+               }
+>>>>>>> origin/main
            }
            case msg_individual -> {
                System.out.println("msg individual");
