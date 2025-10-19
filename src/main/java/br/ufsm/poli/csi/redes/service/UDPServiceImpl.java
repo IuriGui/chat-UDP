@@ -10,6 +10,7 @@ import lombok.SneakyThrows;
 import java.io.IOException;
 import java.net.*;
 import java.sql.Timestamp;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
@@ -41,13 +42,30 @@ public class UDPServiceImpl implements UDPService {
         @SneakyThrows
         public void run() {
             byte[] buffer = new byte[2048];
+            ObjectMapper mapper = new ObjectMapper();
+
             while (true) {
                 DatagramPacket packet = new DatagramPacket(buffer, buffer.length);
                 this.socket.receive(packet);
 
-                String mensagem = new String(packet.getData(), 0, packet.getLength());
                 InetAddress remetente = packet.getAddress();
                 int porta = packet.getPort();
+                String strMensagem = new String(packet.getData(), 0, packet.getLength());
+
+                Mensagem msg = mapper.readValue(strMensagem, Mensagem.class);
+
+
+
+
+
+                String mensagem = new String(packet.getData(), 0, packet.getLength());
+
+                if (isMyAddress(remetente)) {
+                    System.out.println("📦 Recebi um pacote que eu mesmo enviei.");
+                    continue;
+                }
+
+
 
                 System.out.println("[UDPListener] Recebido de " + remetente.getHostAddress() + ":" + porta + " -> " + mensagem);
 
@@ -81,8 +99,10 @@ public class UDPServiceImpl implements UDPService {
                 mensagem.setTipoMensagem(TipoMensagem.sonda);
                 mensagem.setUsuario(usuario.getNome());
                 mensagem.setStatus(usuario.getStatus().toString());
+
                 String strMensagem = mapper.writeValueAsString(mensagem);
                 byte[] bMensagem = strMensagem.getBytes();
+
 
                 sendToEveryone(bMensagem);
 
@@ -120,6 +140,23 @@ public class UDPServiceImpl implements UDPService {
         this.iniciarThreads();
     }
 
+    private boolean isMyAddress(InetAddress addr) {
+        try {
+            for (NetworkInterface ni : Collections.list(NetworkInterface.getNetworkInterfaces())) {
+                for (InterfaceAddress ia : ni.getInterfaceAddresses()) {
+                    InetAddress localAddr = ia.getAddress();
+                    if (localAddr != null && localAddr.equals(addr)) {
+                        return true;
+                    }
+                }
+            }
+        } catch (SocketException e) {
+            e.printStackTrace();
+        }
+        return false;
+    }
+
+
     @Override
     public void iniciarThreads() throws SocketException {
 
@@ -148,7 +185,10 @@ public class UDPServiceImpl implements UDPService {
         Mensagem msg = mapper.readValue(mensagem, Mensagem.class);
 
         InetAddress remetente = packet.getAddress();
+        int porta = packet.getPort();
 
+
+        
         switch (msg.getTipoMensagem()) {
             case sonda -> {
                 //System.out.println("📡 Recebida sonda de " + msg.getUsuario());
@@ -172,9 +212,26 @@ public class UDPServiceImpl implements UDPService {
                 }
             }
             case msg_individual -> {
-                Usuario u = new Usuario();
-                u.setNome(msg.getUsuario());
-                u.setStatus(Usuario.StatusUsuario.valueOf(msg.getStatus()));
+                String nomeRemetente =  msg.getUsuario();
+                Usuario u = null;
+                for (Usuario user : listaUsuarios.values()) {
+                    if (user.getNome().equals(nomeRemetente)) {
+                        u = user;
+                        break;
+                    }
+                }
+
+                if (u == null) {
+                    u = new Usuario();
+                    u.setNome(nomeRemetente);
+                    u.setStatus(Usuario.StatusUsuario.valueOf(msg.getStatus()));
+                    u.setEndereco(remetente);
+                } else {
+                    // atualizar IP e status caso tenham mudado
+                    u.setEndereco(remetente);
+                    u.setStatus(Usuario.StatusUsuario.valueOf(msg.getStatus()));
+                }
+
                 for (UDPServiceMensagemListener listener : mensagemListeners){
                     listener.mensagemRecebida(msg.getMsg(), u, false);
                 }
@@ -249,6 +306,11 @@ public class UDPServiceImpl implements UDPService {
                 socket.setBroadcast(false);
                 System.out.println("[Mensagem] " + strMensagem);
                 socket.send(new DatagramPacket(bMensagem, bMensagem.length, destinatario.getEndereco(), 8080));
+//
+//                for (UDPServiceMensagemListener listener : mensagemListeners){
+//                    listener.mensagemRecebida(mensagem, destinatario, false);
+//                }
+
             }
 
         } catch (Exception e) {
@@ -258,6 +320,7 @@ public class UDPServiceImpl implements UDPService {
 
     @Override
     public void usuarioAlterado(Usuario usuario) {
+        System.out.println("Endereco no momento que add user: " + usuario.getEndereco());
         this.usuario = usuario;
     }
 

@@ -162,7 +162,7 @@ public class ChatClientSwing extends JFrame {
                 @Override
                 public void actionPerformed(ActionEvent e) {
                     ((JTextField) e.getSource()).setText("");
-                    //areaChat.append(meuUsuario.getNome() + "> " + e.getActionCommand() + "\n");
+                    areaChat.append(meuUsuario.getNome() + "> " + e.getActionCommand() + "\n");
                     try {
                         udpService.enviarMensagem(e.getActionCommand(), usuario, chatGeral);
                     } catch (JsonProcessingException ex) {
