@@ -61,13 +61,13 @@ public class UDPServiceImpl implements UDPService {
                 String mensagem = new String(packet.getData(), 0, packet.getLength());
 
                 if (isMyAddress(remetente)) {
-                    System.out.println("📦 Recebi um pacote que eu mesmo enviei.");
+                    //System.out.println("📦 Recebi um pacote que eu mesmo enviei.");
                     continue;
                 }
 
 
 
-                System.out.println("[UDPListener] Recebido de " + remetente.getHostAddress() + ":" + porta + " -> " + mensagem);
+                //System.out.println("[UDPListener] Recebido de " + remetente.getHostAddress() + ":" + porta + " -> " + mensagem);
 
                 processaPacotes(packet);
 
@@ -237,7 +237,7 @@ public class UDPServiceImpl implements UDPService {
                 }
             }
             case fim_chat -> {
-                System.out.println("fim chat");
+
             }
 
         }
@@ -264,7 +264,7 @@ public class UDPServiceImpl implements UDPService {
                         for (UDPServiceUsuarioListener listener : usuarioListeners) {
                             listener.usuarioRemovido(u);
                         }
-                        // Remove do mapa
+
                         listaUsuarios.remove(entry.getKey());
                     }
                 }
@@ -320,7 +320,7 @@ public class UDPServiceImpl implements UDPService {
 
     @Override
     public void usuarioAlterado(Usuario usuario) {
-        System.out.println("Endereco no momento que add user: " + usuario.getEndereco());
+        //System.out.println("Endereco no momento que add user: " + usuario.getEndereco());
         this.usuario = usuario;
     }
 
@@ -335,8 +335,26 @@ public class UDPServiceImpl implements UDPService {
         mensagemListeners.add(listener);
     }
 
+    @Override
     public void fimChat(Usuario usuario) {
+        System.out.println("Fim chat");
 
+        try {
+            ObjectMapper mapper = new ObjectMapper();
+            Mensagem mensagemObj = new Mensagem();
+            mensagemObj.setUsuario(this.usuario.getNome());
+            mensagemObj.setStatus(usuario.getStatus().toString());
+            mensagemObj.setTipoMensagem(TipoMensagem.fim_chat);
+            String strMensagem = mapper.writeValueAsString(mensagemObj);
+            byte[] bMensagem = strMensagem.getBytes();
+
+
+            socket.send(new DatagramPacket(bMensagem, bMensagem.length, usuario.getEndereco(), 8080));
+        } catch (JsonProcessingException e) {
+            throw new RuntimeException(e);
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
     }
 
 }
