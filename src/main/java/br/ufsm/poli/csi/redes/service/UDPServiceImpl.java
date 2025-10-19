@@ -238,6 +238,17 @@ public class UDPServiceImpl implements UDPService {
             }
             case fim_chat -> {
 
+                String nomeRemetente =  msg.getUsuario();
+                Usuario u = null;
+                for (Usuario user : listaUsuarios.values()) {
+                    if (user.getNome().equals(nomeRemetente)) {
+                        u = user;
+                        break;
+                    }
+                }
+                for (UDPServiceMensagemListener listener : mensagemListeners){
+                    listener.fimChatPelaOutraParte(u);
+                }
             }
 
         }

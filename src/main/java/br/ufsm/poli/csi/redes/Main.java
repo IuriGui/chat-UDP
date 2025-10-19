@@ -15,7 +15,8 @@ public class Main {
 
 //        for (NetworkInterface ni : java.util.Collections.list(NetworkInterface.getNetworkInterfaces())) {
 //            System.out.println("\nInterface: " + ni.getDisplayName());
-//            for (InterfaceAddress ia : ni.getInterfaceAddresses()) {
+//            for (InterfaceAddress ia : ni
+//            .getInterfaceAddresses()) {
 //                System.out.println("  IP: " + ia.getAddress().getHostAddress());
 //                System.out.println("  Broadcast: " + ia.getBroadcast());
 //            }
