@@ -49,7 +49,7 @@ public class UDPServiceImpl implements UDPService {
                 InetAddress remetente = packet.getAddress();
                 int porta = packet.getPort();
 
-                //System.out.println("[UDPListener] Recebido de " + remetente.getHostAddress() + ":" + porta + " -> " + mensagem);
+                System.out.println("[UDPListener] Recebido de " + remetente.getHostAddress() + ":" + porta + " -> " + mensagem);
 
                 processaPacotes(packet);
 
@@ -151,7 +151,7 @@ public class UDPServiceImpl implements UDPService {
 
         switch (msg.getTipoMensagem()) {
             case sonda -> {
-                System.out.println("📡 Recebida sonda de " + msg.getUsuario());
+                //System.out.println("📡 Recebida sonda de " + msg.getUsuario());
 
                 //Usuario do pacote
                 Usuario u = new Usuario(msg.getUsuario(), Usuario.StatusUsuario.valueOf(msg.getStatus()), remetente, new Timestamp(System.currentTimeMillis()));
@@ -229,16 +229,23 @@ public class UDPServiceImpl implements UDPService {
         DatagramPacket packet;
         ObjectMapper mapper = new ObjectMapper();
 
-        Mensagem mensagemGrupo = new Mensagem();
-        mensagemGrupo.setUsuario(usuario.getNome());
-        mensagemGrupo.setStatus(usuario.getStatus().toString());
-        mensagemGrupo.setTipoMensagem(TipoMensagem.msg_grupo);
-        mensagemGrupo.setMsg(mensagem);
+        Mensagem mensagemObj = new Mensagem();
+        mensagemObj.setUsuario(usuario.getNome());
+        mensagemObj.setStatus(usuario.getStatus().toString());
+        mensagemObj.setTipoMensagem(chatGeral ? TipoMensagem.msg_grupo : TipoMensagem.msg_individual);
+        mensagemObj.setMsg(mensagem);
 
         try {
-            String strMensagem = mapper.writeValueAsString(mensagemGrupo);
+            String strMensagem = mapper.writeValueAsString(mensagemObj);
             byte[] bMensagem = strMensagem.getBytes();
-            sendToEveryone(bMensagem);
+            if (chatGeral) {
+                sendToEveryone(bMensagem);
+            } else{
+                socket.setBroadcast(false);
+                System.out.println("[Mensagem] " + strMensagem);
+                socket.send(new DatagramPacket(bMensagem, bMensagem.length, destinatario.getEndereco(), 8080));
+            }
+
         } catch (Exception e) {
             e.printStackTrace();
         }
