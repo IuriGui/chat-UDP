@@ -77,23 +77,28 @@ public class UDPServiceImpl implements UDPService {
                 String strMensagem = mapper.writeValueAsString(mensagem);
                 byte[] bMensagem = strMensagem.getBytes();
 
+                sendToEveryone(bMensagem);
 
-                for (NetworkInterface ni : java.util.Collections.list(NetworkInterface.getNetworkInterfaces())) {
-                    if (ni.isLoopback() || !ni.isUp()) continue;
+            }
+        }
+    }
 
-                    for (InterfaceAddress ia : ni.getInterfaceAddresses()) {
-                        InetAddress broadcast = ia.getBroadcast();
+    @SneakyThrows
+    private void sendToEveryone(byte[] bMensagem) {
+        for (NetworkInterface ni : java.util.Collections.list(NetworkInterface.getNetworkInterfaces())) {
+            if (ni.isLoopback() || !ni.isUp()) continue;
 
-                        if (broadcast == null) continue;
+            for (InterfaceAddress ia : ni.getInterfaceAddresses()) {
+                InetAddress broadcast = ia.getBroadcast();
 
-                        //System.out.println("[UDPService] Enviando broadcast para: " + broadcast.getHostAddress());
+                if (broadcast == null) continue;
 
-                        socket.setBroadcast(true);
-                        socket.send(new DatagramPacket(bMensagem, bMensagem.length, broadcast, 8080));
+                //System.out.println("[UDPService] Enviando broadcast para: " + broadcast.getHostAddress());
 
-                        //System.out.println("[UDPService] Mensagem enviada com sucesso para " + broadcast.getHostAddress());
-                    }
-                }
+                socket.setBroadcast(true);
+                socket.send(new DatagramPacket(bMensagem, bMensagem.length, broadcast, 8080));
+
+                //System.out.println("[UDPService] Mensagem enviada com sucesso para " + broadcast.getHostAddress());
             }
         }
     }
@@ -144,7 +149,7 @@ public class UDPServiceImpl implements UDPService {
                imprimirUsuarios();
            }
            case msg_grupo -> {
-               System.out.println("mensagem grupo");
+
            }
            case msg_individual -> {
                System.out.println("msg individual");
@@ -175,7 +180,7 @@ public class UDPServiceImpl implements UDPService {
             ObjectMapper mapper = new ObjectMapper();
 
             Mensagem mensagemGrupo = new Mensagem();
-            mensagemGrupo.setUsuario(destinatario.getNome());
+            mensagemGrupo.setUsuario(usuario.getNome());
             mensagemGrupo.setStatus(usuario.getStatus().toString());
             mensagemGrupo.setTipoMensagem(TipoMensagem.msg_grupo);
             mensagemGrupo.setMsg(mensagem);
@@ -183,12 +188,7 @@ public class UDPServiceImpl implements UDPService {
             try {
                 String strMensagem = mapper.writeValueAsString(mensagemGrupo);
                 byte[] bMensagem = strMensagem.getBytes();
-                InetAddress broadcast = InetAddress.getByName("255.255.255.255");
-                socket.setBroadcast(true);
-
-                packet = new DatagramPacket(bMensagem, bMensagem.length, broadcast, 8080);
-                socket.send(packet);
-
+                sendToEveryone(bMensagem);
             } catch (Exception e){
                 e.printStackTrace();
             }
