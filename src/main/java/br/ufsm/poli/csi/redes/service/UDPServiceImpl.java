@@ -18,6 +18,7 @@ public class UDPServiceImpl implements UDPService {
 
     private Usuario usuario;
     private DatagramSocket socket;
+    private final ObjectMapper mapper = new ObjectMapper();
 
     private final Set<UDPServiceUsuarioListener> usuarioListeners = ConcurrentHashMap.newKeySet();
     private final Set<UDPServiceMensagemListener> mensagemListeners = ConcurrentHashMap.newKeySet();
@@ -41,15 +42,16 @@ public class UDPServiceImpl implements UDPService {
             while (true) {
                 DatagramPacket packet = new DatagramPacket(buffer, buffer.length);
                 this.socket.receive(packet);
-
                 InetAddress remetente = packet.getAddress();
+                String strMensagem = new String(packet.getData(), 0, packet.getLength());
+                Mensagem msg = mapper.readValue(strMensagem, Mensagem.class);
 
                 if (isMyAddress(remetente)) {
                     continue;
                 }
                 //System.out.println("[UDPListener] Recebido de " + remetente.getHostAddress() + ":" + porta + " -> " + mensagem);
 
-                processaPacotes(packet);
+                processaPacotes(msg, remetente);
 
 
             }
@@ -58,7 +60,6 @@ public class UDPServiceImpl implements UDPService {
 
     private class Sonda implements Runnable {
 
-        private final ObjectMapper mapper = new ObjectMapper();
 
         public Sonda(DatagramSocket socket) {
         }
@@ -155,16 +156,7 @@ public class UDPServiceImpl implements UDPService {
     }
 
 
-    private void processaPacotes(DatagramPacket packet) throws IOException {
-        String mensagem = new String(packet.getData(), 0, packet.getLength());
-        ObjectMapper mapper = new ObjectMapper();
-        Mensagem msg = mapper.readValue(mensagem, Mensagem.class);
-
-        InetAddress remetente = packet.getAddress();
-
-
-
-        
+    private void processaPacotes(Mensagem msg, InetAddress remetente) throws IOException {
         switch (msg.getTipoMensagem()) {
             case sonda -> {
 
@@ -267,8 +259,6 @@ public class UDPServiceImpl implements UDPService {
     @Override
     public void enviarMensagem(String mensagem, Usuario destinatario, boolean chatGeral) {
 
-        ObjectMapper mapper = new ObjectMapper();
-
         Mensagem mensagemObj = new Mensagem();
         mensagemObj.setUsuario(usuario.getNome());
         mensagemObj.setStatus(usuario.getStatus().toString());
@@ -314,7 +304,6 @@ public class UDPServiceImpl implements UDPService {
         System.out.println("Fim chat");
 
         try {
-            ObjectMapper mapper = new ObjectMapper();
             Mensagem mensagemObj = new Mensagem();
             mensagemObj.setUsuario(this.usuario.getNome());
             mensagemObj.setStatus(usuario.getStatus().toString());
