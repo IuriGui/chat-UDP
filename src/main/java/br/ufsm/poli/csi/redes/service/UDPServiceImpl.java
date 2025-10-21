@@ -3,7 +3,6 @@ package br.ufsm.poli.csi.redes.service;
 import br.ufsm.poli.csi.redes.model.Mensagem;
 import br.ufsm.poli.csi.redes.model.TipoMensagem;
 import br.ufsm.poli.csi.redes.model.Usuario;
-import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.SneakyThrows;
 
@@ -11,7 +10,6 @@ import java.io.IOException;
 import java.net.*;
 import java.sql.Timestamp;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
@@ -20,9 +18,6 @@ public class UDPServiceImpl implements UDPService {
 
     private Usuario usuario;
     private DatagramSocket socket;
-    private Thread threadEnviaSonda;
-    private Thread threadListener;
-    private Thread threadUsuario;
 
     private final Set<UDPServiceUsuarioListener> usuarioListeners = ConcurrentHashMap.newKeySet();
     private final Set<UDPServiceMensagemListener> mensagemListeners = ConcurrentHashMap.newKeySet();
@@ -42,31 +37,16 @@ public class UDPServiceImpl implements UDPService {
         @SneakyThrows
         public void run() {
             byte[] buffer = new byte[2048];
-            ObjectMapper mapper = new ObjectMapper();
 
             while (true) {
                 DatagramPacket packet = new DatagramPacket(buffer, buffer.length);
                 this.socket.receive(packet);
 
                 InetAddress remetente = packet.getAddress();
-                int porta = packet.getPort();
-                String strMensagem = new String(packet.getData(), 0, packet.getLength());
-
-                Mensagem msg = mapper.readValue(strMensagem, Mensagem.class);
-
-
-
-
-
-                String mensagem = new String(packet.getData(), 0, packet.getLength());
 
                 if (isMyAddress(remetente)) {
-                    //System.out.println("📦 Recebi um pacote que eu mesmo enviei.");
                     continue;
                 }
-
-
-
                 //System.out.println("[UDPListener] Recebido de " + remetente.getHostAddress() + ":" + porta + " -> " + mensagem);
 
                 processaPacotes(packet);
@@ -78,14 +58,10 @@ public class UDPServiceImpl implements UDPService {
 
     private class Sonda implements Runnable {
 
-        private final DatagramSocket socket;
         private final ObjectMapper mapper = new ObjectMapper();
 
         public Sonda(DatagramSocket socket) {
-            this.socket = socket;
         }
-
-
         @Override
         @SneakyThrows
         public void run() {
@@ -164,15 +140,15 @@ public class UDPServiceImpl implements UDPService {
         socket.setBroadcast(true);
 
 
-        threadEnviaSonda = new Thread(new Sonda(socket));
+        Thread threadEnviaSonda = new Thread(new Sonda(socket));
         threadEnviaSonda.setDaemon(true);
         threadEnviaSonda.start();
 
-        threadListener = new Thread(new Listener(socket));
+        Thread threadListener = new Thread(new Listener(socket));
         threadListener.setDaemon(true);
         threadListener.start();
 
-        threadUsuario = new Thread(new RemoveInativo());
+        Thread threadUsuario = new Thread(new RemoveInativo());
         threadUsuario.setDaemon(true);
         threadUsuario.start();
 
@@ -185,15 +161,13 @@ public class UDPServiceImpl implements UDPService {
         Mensagem msg = mapper.readValue(mensagem, Mensagem.class);
 
         InetAddress remetente = packet.getAddress();
-        int porta = packet.getPort();
+
 
 
         
         switch (msg.getTipoMensagem()) {
             case sonda -> {
-                //System.out.println("📡 Recebida sonda de " + msg.getUsuario());
 
-                //Usuario do pacote
                 Usuario u = new Usuario(msg.getUsuario(), Usuario.StatusUsuario.valueOf(msg.getStatus()), remetente, new Timestamp(System.currentTimeMillis()));
 
                 listaUsuarios.put(remetente, u);
@@ -281,7 +255,7 @@ public class UDPServiceImpl implements UDPService {
                 }
 
                 try {
-                    Thread.sleep(5000); // verifica a cada 5 segundos
+                    Thread.sleep(5000);
                 } catch (InterruptedException e) {
                     e.printStackTrace();
                 }
@@ -289,17 +263,10 @@ public class UDPServiceImpl implements UDPService {
         }
     }
 
-    private void imprimirUsuarios() {
-        System.out.println("👥 Usuários ativos:");
-        listaUsuarios.forEach((ip, usuario) -> {
-            System.out.println(" - " + usuario.getNome() + " (" + ip.getHostAddress() + ") " + usuario.getStatus());
-        });
-    }
-
 
     @Override
-    public void enviarMensagem(String mensagem, Usuario destinatario, boolean chatGeral) throws JsonProcessingException {
-        DatagramPacket packet;
+    public void enviarMensagem(String mensagem, Usuario destinatario, boolean chatGeral) {
+
         ObjectMapper mapper = new ObjectMapper();
 
         Mensagem mensagemObj = new Mensagem();
@@ -317,10 +284,6 @@ public class UDPServiceImpl implements UDPService {
                 socket.setBroadcast(false);
                 System.out.println("[Mensagem] " + strMensagem);
                 socket.send(new DatagramPacket(bMensagem, bMensagem.length, destinatario.getEndereco(), 8080));
-//
-//                for (UDPServiceMensagemListener listener : mensagemListeners){
-//                    listener.mensagemRecebida(mensagem, destinatario, false);
-//                }
 
             }
 
@@ -361,8 +324,6 @@ public class UDPServiceImpl implements UDPService {
 
 
             socket.send(new DatagramPacket(bMensagem, bMensagem.length, usuario.getEndereco(), 8080));
-        } catch (JsonProcessingException e) {
-            throw new RuntimeException(e);
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
