@@ -102,17 +102,15 @@ public class UDPServiceImpl implements UDPService {
 
     private boolean isMyAddress(InetAddress addr) {
         try {
-            for (NetworkInterface ni : Collections.list(NetworkInterface.getNetworkInterfaces())) {
-                for (InterfaceAddress ia : ni.getInterfaceAddresses()) {
-                    InetAddress localAddr = ia.getAddress();
-                    if (localAddr != null && localAddr.equals(addr)) {
-                        return true;
-                    }
-                }
+            NetworkInterface ni = NetworkInterface.getByInetAddress(addr);
+            if (ni != null) {
+                //System.out.println("Meu address é: " + addr.getHostAddress());
+                return true;
             }
         } catch (SocketException e) {
             e.printStackTrace();
         }
+        //System.out.println("Não eh meu endereco" + addr.getHostAddress());
         return false;
     }
 
