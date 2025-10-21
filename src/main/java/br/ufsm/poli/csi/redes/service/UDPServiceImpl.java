@@ -89,28 +89,11 @@ public class UDPServiceImpl implements UDPService {
 
     @SneakyThrows
     private void sendToEveryone(byte[] bMensagem) {
-        for (NetworkInterface ni : java.util.Collections.list(NetworkInterface.getNetworkInterfaces())) {
-            if (ni.isLoopback() || !ni.isUp() || ni.isVirtual()) continue;
+        InetAddress broadcast = InetAddress.getByName("192.168.0.255");
+        DatagramPacket packet = new DatagramPacket(bMensagem, bMensagem.length, broadcast, 8080);
+        socket.send(new DatagramPacket(bMensagem, bMensagem.length, broadcast, 8080));
 
-            String nome = ni.getDisplayName().toLowerCase();
-            if (nome.contains("virtual") || nome.contains("vmware") || nome.contains("hyper-v") ||
-                    nome.contains("loopback") || nome.contains("miniport") || nome.contains("zerotier")) {
-                continue;
-            }
-
-            for (InterfaceAddress ia : ni.getInterfaceAddresses()) {
-                InetAddress broadcast = ia.getBroadcast();
-
-                if (broadcast == null) continue;
-
-                //System.out.println("[UDPService] Enviando broadcast para: " + broadcast.getHostAddress());
-
-                socket.setBroadcast(true);
-                socket.send(new DatagramPacket(bMensagem, bMensagem.length, broadcast, 8080));
-
-                //System.out.println("[UDPService] Mensagem enviada com sucesso para " + broadcast.getHostAddress());
-            }
-        }
+        System.out.println("[UDPService] Mensagem enviada com sucesso para " + broadcast.getHostAddress());
     }
 
     public UDPServiceImpl() throws SocketException {
@@ -241,7 +224,6 @@ public class UDPServiceImpl implements UDPService {
                         for (UDPServiceUsuarioListener listener : usuarioListeners) {
                             listener.usuarioRemovido(u);
                         }
-
                         listaUsuarios.remove(entry.getKey());
                     }
                 }
@@ -271,7 +253,7 @@ public class UDPServiceImpl implements UDPService {
             if (chatGeral) {
                 sendToEveryone(bMensagem);
             } else{
-                socket.setBroadcast(false);
+                //socket.setBroadcast(false);
                 System.out.println("[Mensagem] " + strMensagem);
                 socket.send(new DatagramPacket(bMensagem, bMensagem.length, destinatario.getEndereco(), 8080));
 
@@ -310,8 +292,6 @@ public class UDPServiceImpl implements UDPService {
             mensagemObj.setTipoMensagem(TipoMensagem.fim_chat);
             String strMensagem = mapper.writeValueAsString(mensagemObj);
             byte[] bMensagem = strMensagem.getBytes();
-
-
             socket.send(new DatagramPacket(bMensagem, bMensagem.length, usuario.getEndereco(), 8080));
         } catch (IOException e) {
             throw new RuntimeException(e);
